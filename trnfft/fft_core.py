@@ -56,7 +56,7 @@ def _cooley_tukey(x: ComplexTensor, inverse: bool) -> ComplexTensor:
     sign = 1.0 if inverse else -1.0
 
     # Bit-reversal permutation
-    indices = _bit_reverse_indices(n, log2n)
+    indices = _bit_reverse_indices(n, log2n).to(x.real.device)
     re = x.real[..., indices].clone()
     im = x.imag[..., indices].clone()
 
@@ -67,7 +67,7 @@ def _cooley_tukey(x: ComplexTensor, inverse: bool) -> ComplexTensor:
         half = m >> 1           # Half group
 
         # Twiddle: exp(sign * 2πi * k / m) for k = 0..half-1
-        angles = sign * 2.0 * math.pi * torch.arange(half, dtype=re.dtype) / m
+        angles = sign * 2.0 * math.pi * torch.arange(half, dtype=re.dtype, device=re.device) / m
         tw_re = torch.cos(angles)
         tw_im = torch.sin(angles)
 
@@ -156,11 +156,11 @@ def _cooley_tukey_nki(x: ComplexTensor, inverse: bool) -> ComplexTensor:
 
         # Precompute twiddle factors for this stage. Expand to (total_groups, half)
         # so every batch row / group row has matching partition-dim values.
-        angles = sign * 2.0 * math.pi * torch.arange(half, dtype=x.real.dtype) / m
+        angles = sign * 2.0 * math.pi * torch.arange(half, dtype=x.real.dtype, device=device) / m
         tw_re_1d = torch.cos(angles)
         tw_im_1d = torch.sin(angles)
-        tw_re_bcast = tw_re_1d.unsqueeze(0).expand(total_groups, half).contiguous().to(device)
-        tw_im_bcast = tw_im_1d.unsqueeze(0).expand(total_groups, half).contiguous().to(device)
+        tw_re_bcast = tw_re_1d.unsqueeze(0).expand(total_groups, half).contiguous()
+        tw_im_bcast = tw_im_1d.unsqueeze(0).expand(total_groups, half).contiguous()
 
         re, im = butterfly_stage_kernel(re, im, tw_re_bcast, tw_im_bcast, n, s)
 
@@ -183,8 +183,9 @@ def _bluestein(x: ComplexTensor, inverse: bool, padded_n: Optional[int] = None) 
 
     sign = 1.0 if inverse else -1.0
 
+    device = x.real.device
     # Chirp sequence: W_N^(k^2/2) = exp(sign * πi * k^2 / N)
-    k = torch.arange(n, dtype=x.dtype)
+    k = torch.arange(n, dtype=x.dtype, device=device)
     chirp_angles = sign * math.pi * k * k / n
     chirp_re = torch.cos(chirp_angles)
     chirp_im = torch.sin(chirp_angles)
@@ -195,15 +196,15 @@ def _bluestein(x: ComplexTensor, inverse: bool, padded_n: Optional[int] = None) 
 
     # Step 2: Zero-pad y to length m
     batch_shape = x.shape[:-1]
-    y_pad_re = torch.zeros(*batch_shape, m, dtype=x.dtype)
-    y_pad_im = torch.zeros(*batch_shape, m, dtype=x.dtype)
+    y_pad_re = torch.zeros(*batch_shape, m, dtype=x.dtype, device=device)
+    y_pad_im = torch.zeros(*batch_shape, m, dtype=x.dtype, device=device)
     y_pad_re[..., :n] = y.real
     y_pad_im[..., :n] = y.imag
     y_padded = ComplexTensor(y_pad_re, y_pad_im)
 
     # Step 3: Build filter h = conj(chirp) with circular wrap
-    h_re = torch.zeros(m, dtype=x.dtype)
-    h_im = torch.zeros(m, dtype=x.dtype)
+    h_re = torch.zeros(m, dtype=x.dtype, device=device)
+    h_im = torch.zeros(m, dtype=x.dtype, device=device)
     h_re[:n] = chirp_re
     h_im[:n] = -chirp_im  # conjugate
     for i in range(1, n):

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `stft` frame extraction no longer uses `torch.Tensor.unfold`, which has no XLA backend implementation in torch-xla 2.9 / torch-neuronx and raised `RuntimeError: The operator aten::unfold appears to be a view operator, but it has no implementation for the backend "xla:0"`. Replaced with explicit `torch.arange`-based index construction, which is device-agnostic and works on CPU, CUDA, MPS, and XLA/Trainium without branching.
+- `_cooley_tukey_nki` padding tensor now inherits the input tensor's device. Previously `torch.zeros(...)` created a CPU tensor that was then `torch.cat`'d with an XLA tensor, raising `RuntimeError: Expected all tensors in the given list to be XLA tensors`. This only manifested when the flattened batch size was not already a multiple of `PMAX=128`.
 
 ## [0.7.0] - 2026-04-12
 

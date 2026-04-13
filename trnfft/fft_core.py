@@ -132,7 +132,8 @@ def _cooley_tukey_nki(x: ComplexTensor, inverse: bool) -> ComplexTensor:
         pad_im = flat_im
     else:
         B = ((B_orig + PMAX - 1) // PMAX) * PMAX
-        padding = torch.zeros(B - B_orig, n, dtype=flat_re.dtype)
+        padding = torch.zeros(B - B_orig, n, dtype=flat_re.dtype,
+                              device=flat_re.device)
         pad_re = torch.cat([flat_re, padding], dim=0)
         pad_im = torch.cat([flat_im, padding], dim=0)
 
